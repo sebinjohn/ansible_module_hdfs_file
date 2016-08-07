@@ -18,6 +18,7 @@ def main():
     state = module.params.get('state')
     kerberos = module.params.get('kerberos')
     full_path = check_path(path)
+
     if full_path is None:
         module.fail_json('invalid paths : {}'.format(path))
     try:
@@ -30,9 +31,9 @@ def main():
         # file is assumed
         if module.check_mode:
             if exists:
-                module.exit_json(changed=False, 'file already exists')
+                module.exit_json(changed=False, msg='file already exists')
             else:
-                module.exit_json(changed=True, 'file is created')
+                module.exit_json(changed=True, msg='file is created')
         else:
             if exists:
                 module.exit_json(changed=False, msg='{0} already exists'.format(full_path))
@@ -48,48 +49,59 @@ def main():
                     module.fail_json(msg=e.message)
 
     if state == 'directory':
-        folder_exist = client.test(full_path, exists=True, directory=True)
-        if folder_exist:
-            module.exit_json(changed=False, msg='hdfs directory {0} already exists'.format(full_path))
-
-        try:
-            x = client.mkdir([full_path], create_parent=False)
-            for i in x:
-                if i['result'] is True:
-                    module.exit_json(changed=True, msg='created hdfs directory {0}'.format(full_path))
-                else:
-                    module.fail_json(msg='directory creation failed {0}'.format(full_path))
-        except Exception as e:
-            module.fail_json(msg=e.message)
+        exist = client.test(full_path, exists=True, directory=True)
+        if module.check_mode:
+            if exist:
+                module.exit_json(changed=False, msg='directory exists')
+            else:
+                module.exit_json(changed=True, msg='directory created')
+        else:
+            if exist:
+                module.exit_json(changed=False, msg='hdfs directory {0} already exists'.format(full_path))
+            try:
+                x = client.mkdir([full_path], create_parent=False)
+                for i in x:
+                    if i['result'] is True:
+                        module.exit_json(changed=True, msg='created hdfs directory {0}'.format(full_path))
+                    else:
+                        module.fail_json(msg='directory creation failed {0}'.format(full_path))
+            except Exception as e:
+                module.fail_json(msg=e.message)
 
     if state == 'absent':
         exists = client.test(full_path, exists=True)
-        if not exists:
-            module.exit_json(changed=False, msg='File or directory is absent {0}'.format(
-                full_path
-            ))
-
-        is_dir = client.test(full_path, directory=True)
-        if not is_dir:
-            try:
-                x = client.delete([full_path])
-                for i in x:
-                    if i['result'] is True:
-                        module.exit_json(changed=True, msg='hdfs file {0} is absent'.format(full_path))
-                    elif i['result'] is True:
-                        module.fail_json(msg='error while deleting hdfs file'.format(full_path))
-            except Exception as e:
-                module.fail_json(msg=e.message)
+        if module.check_mode:
+            if exist:
+                module.exit_json(changed=True, msg='file deleted')
+            else:
+                module.exit_json(changed=False, msg='file is absent')
         else:
-            try:
-                x = client.delete([full_path], recurse=True)
-                for i in x:
-                    if i['result'] is True:
-                        module.exit_json(changed=True, msg='hdfs file {0} is absent'.format(full_path))
-                    elif i['result'] is True:
-                        module.fail_json(msg='error while deleting hdfs file'.format(full_path))
-            except Exception as e:
-                module.fail_json(msg=e.message)
+            if not exists:
+                module.exit_json(changed=False, msg='File or directory is absent {0}'.format(
+                    full_path
+                ))
+
+            is_dir = client.test(full_path, directory=True)
+            if not is_dir:
+                try:
+                    x = client.delete([full_path])
+                    for i in x:
+                        if i['result'] is True:
+                            module.exit_json(changed=True, msg='hdfs file {0} is absent'.format(full_path))
+                        elif i['result'] is True:
+                            module.fail_json(msg='error while deleting hdfs file'.format(full_path))
+                except Exception as e:
+                    module.fail_json(msg=e.message)
+            else:
+                try:
+                    x = client.delete([full_path], recurse=True)
+                    for i in x:
+                        if i['result'] is True:
+                            module.exit_json(changed=True, msg='hdfs file {0} is absent'.format(full_path))
+                        elif i['result'] is True:
+                            module.fail_json(msg='error while deleting hdfs file'.format(full_path))
+                except Exception as e:
+                    module.fail_json(msg=e.message)
 
 
 def check_path(name):
